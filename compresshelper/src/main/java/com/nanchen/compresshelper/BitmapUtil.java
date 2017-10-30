@@ -19,7 +19,7 @@ import java.io.InputStream;
 
 /**
  * 图片处理工具类
- *
+ * <p>
  * Author: nanchen
  * Email: liushilin520@foxmail.com
  * Date: 2017-03-08  9:03
@@ -39,6 +39,7 @@ public class BitmapUtil {
 
         //by setting this field as true, the actual bitmap pixels are not loaded in the memory. Just the bounds are loaded. If
         //you try the use the bitmap here, you will get null.
+        //设置inJustDecodeBounds = true 只获取宽高 节约内存 此时获取的bitmap为null
         options.inJustDecodeBounds = true;
         Bitmap bmp = BitmapFactory.decodeFile(filePath, options);
         if (bmp == null) {
@@ -54,10 +55,11 @@ public class BitmapUtil {
             }
         }
 
+        //  获取目标bitmap的宽高
         int actualHeight = options.outHeight;
         int actualWidth = options.outWidth;
 
-        if (actualHeight == -1 || actualWidth == -1){
+        if (actualHeight == -1 || actualWidth == -1) {
             try {
                 ExifInterface exifInterface = new ExifInterface(filePath);
                 actualHeight = exifInterface.getAttributeInt(ExifInterface.TAG_IMAGE_LENGTH, ExifInterface.ORIENTATION_NORMAL);//获取图片的高度
@@ -69,18 +71,21 @@ public class BitmapUtil {
 
         if (actualWidth <= 0 || actualHeight <= 0) {
             Bitmap bitmap2 = BitmapFactory.decodeFile(filePath);
-            if (bitmap2 != null){
+            if (bitmap2 != null) {
                 actualWidth = bitmap2.getWidth();
                 actualHeight = bitmap2.getHeight();
-            }else{
+            } else {
                 return null;
             }
         }
 
+        //计算图片的宽高比
         float imgRatio = (float) actualWidth / actualHeight;
+        //计算输出图片的最大宽高比
         float maxRatio = maxWidth / maxHeight;
-
         //width and height values are set maintaining the aspect ratio of the image
+        //如果原图比输出图片的高或者宽大，重新调整输出bitmap的宽高
+        //如果原图小，这直接输出原图的宽高
         if (actualHeight > maxHeight || actualWidth > maxWidth) {
             if (imgRatio < maxRatio) {
                 imgRatio = maxHeight / actualHeight;
@@ -96,10 +101,10 @@ public class BitmapUtil {
             }
         }
 
-        //setting inSampleSize value allows to load a scaled down version of the original image
+        //通过所要的长宽和图的长宽进行压缩 调整采样率
         options.inSampleSize = calculateInSampleSize(options, actualWidth, actualHeight);
 
-        //inJustDecodeBounds set to false to load the actual bitmap
+        //inJustDecodeBounds = false 需要加载图片
         options.inJustDecodeBounds = false;
 
         //this options allow android to claim the bitmap memory if it runs low on memory
@@ -107,12 +112,15 @@ public class BitmapUtil {
         options.inInputShareable = true;
         options.inTempStorage = new byte[16 * 1024];
 
+        //  进行采样率压缩
         try {
             // load the bitmap getTempFile its path
             bmp = BitmapFactory.decodeFile(filePath, options);
             if (bmp == null) {
+                //  如果bitmap压缩不成功
                 InputStream inputStream = null;
                 try {
+                    // 采取文件流压缩
                     inputStream = new FileInputStream(filePath);
                     BitmapFactory.decodeStream(inputStream, null, options);
                     inputStream.close();
@@ -123,11 +131,11 @@ public class BitmapUtil {
         } catch (OutOfMemoryError exception) {
             exception.printStackTrace();
         }
-        if (actualHeight <= 0 || actualWidth <= 0){
+        if (actualHeight <= 0 || actualWidth <= 0) {
             return null;
         }
-
         try {
+            // 缩放法压缩
             scaledBitmap = Bitmap.createBitmap(actualWidth, actualHeight, bitmapConfig);
         } catch (OutOfMemoryError exception) {
             exception.printStackTrace();
@@ -139,29 +147,11 @@ public class BitmapUtil {
         Matrix scaleMatrix = new Matrix();
         scaleMatrix.setScale(ratioX, ratioY, 0, 0);
 
+        assert scaledBitmap != null;
         Canvas canvas = new Canvas(scaledBitmap);
         canvas.setMatrix(scaleMatrix);
+        assert bmp != null;
         canvas.drawBitmap(bmp, 0, 0, new Paint(Paint.FILTER_BITMAP_FLAG));
-
-        // 采用 ExitInterface 设置图片旋转方向
-        ExifInterface exif;
-        try {
-            exif = new ExifInterface(filePath);
-            int orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, 0);
-            Matrix matrix = new Matrix();
-            if (orientation == 6) {
-                matrix.postRotate(90);
-            } else if (orientation == 3) {
-                matrix.postRotate(180);
-            } else if (orientation == 8) {
-                matrix.postRotate(270);
-            }
-            scaledBitmap = Bitmap.createBitmap(scaledBitmap, 0, 0,
-                    scaledBitmap.getWidth(), scaledBitmap.getHeight(),
-                    matrix, true);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
 
         return scaledBitmap;
     }
@@ -173,9 +163,10 @@ public class BitmapUtil {
         String filename = generateFilePath(context, parentPath, imageUri, compressFormat.name().toLowerCase(), prefix, fileName);
         try {
             out = new FileOutputStream(filename);
-            // 通过文件名写入
+            // 通过文件名写入 进行比例上的压缩
             Bitmap newBmp = BitmapUtil.getScaledBitmap(context, imageUri, maxWidth, maxHeight, bitmapConfig);
-            if (newBmp != null){
+            if (newBmp != null) {
+                //质量压缩
                 newBmp.compress(compressFormat, quality, out);
             }
 
@@ -214,7 +205,7 @@ public class BitmapUtil {
         final int height = options.outHeight;
         final int width = options.outWidth;
         int inSampleSize = 1;
-
+        // 调整采样率 如果 输出图片宽高比原图大 用比例较大的值作为采样率
         if (height > reqHeight || width > reqWidth) {
             final int heightRatio = Math.round((float) height / (float) reqHeight);
             final int widthRatio = Math.round((float) width / (float) reqWidth);
@@ -223,7 +214,8 @@ public class BitmapUtil {
 
         final float totalPixels = width * height;
         final float totalReqPixelsCap = reqWidth * reqHeight * 2;
-
+        //  TODO 判断依据是什么
+        //  采样率如果不合适的话 +1
         while (totalPixels / (inSampleSize * inSampleSize) > totalReqPixelsCap) {
             inSampleSize++;
         }
