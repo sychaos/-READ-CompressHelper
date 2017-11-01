@@ -147,16 +147,12 @@ public class BitmapUtil {
         Matrix scaleMatrix = new Matrix();
         scaleMatrix.setScale(ratioX, ratioY, 0, 0);
 
-        // 1.跟下面是一样的效果 根据矩阵数据进行新bitmap的创建 主要差别在于bitmapConfig的设置
+        // 根据矩阵数据进行新bitmap的创建
         assert scaledBitmap != null;
         Canvas canvas = new Canvas(scaledBitmap);
         canvas.setMatrix(scaleMatrix);
         assert bmp != null;
         canvas.drawBitmap(bmp, 0, 0, new Paint(Paint.FILTER_BITMAP_FLAG));
-
-        // 2.根据矩阵数据进行新bitmap的创建 ，可以考虑把bitmapConfig干掉 没什么必要
-        // assert bmp != null;
-        // scaledBitmap = Bitmap.createBitmap(bmp, 0, 0, actualWidth, actualHeight, scaleMatrix, true);
 
         // 采用 ExitInterface 设置图片旋转方向 不太清楚为什么压缩图片会导致转向出现问题 TODO
         ExifInterface exif;
